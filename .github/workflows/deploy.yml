@@ -1,0 +1,115 @@
+name: Build and deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: simulado-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: avaliacoesdb
+          POSTGRES_USER: usuario
+          POSTGRES_PASSWORD: ci_password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U usuario -d avaliacoesdb"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Java 25 Temurin
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+          cache: maven
+
+      - name: Build and test with Maven
+        env:
+          DB_HOST: localhost
+          DB_PORT: '5432'
+          DB_NAME: avaliacoesdb
+          DB_USER: usuario
+          DB_PASSWORD: ci_password
+        run: |
+          chmod +x mvnw
+          ./mvnw -B verify
+
+      - name: Login to DockerHub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build and push image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: |
+            ${{ secrets.DOCKERHUB_USERNAME }}/simulado-arqobj:${{ github.sha }}
+            ${{ secrets.DOCKERHUB_USERNAME }}/simulado-arqobj:latest
+
+      - name: Deploy and verify on AWS
+        uses: appleboy/ssh-action@v1.2.0
+        env:
+          IMAGE: ${{ secrets.DOCKERHUB_USERNAME }}/simulado-arqobj:${{ github.sha }}
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+        with:
+          host: ${{ secrets.HOST_TEST }}
+          username: ubuntu
+          key: ${{ secrets.KEY_TEST }}
+          fingerprint: ${{ secrets.HOST_FINGERPRINT }}
+          envs: IMAGE,DB_PASSWORD
+          command_timeout: 10m
+          script: |
+            set -eu
+            docker network inspect simulado-rede >/dev/null
+            docker inspect postgres-avaliacoes >/dev/null
+            docker exec postgres-avaliacoes pg_isready -U usuario -d avaliacoesdb
+            docker pull "$IMAGE"
+
+            # Only the application container of this project is replaced.
+            if docker container inspect simulado-arqobj >/dev/null 2>&1; then
+              docker stop simulado-arqobj
+              docker rm simulado-arqobj
+            fi
+
+            docker run -d --name simulado-arqobj \
+              --restart unless-stopped \
+              --network simulado-rede \
+              -p 8080:8080 \
+              -e DB_HOST=postgres-avaliacoes \
+              -e DB_PORT=5432 \
+              -e DB_NAME=avaliacoesdb \
+              -e DB_USER=usuario \
+              -e DB_PASSWORD \
+              "$IMAGE"
+
+            for attempt in $(seq 1 40); do
+              if curl --fail --silent http://127.0.0.1:8080/actuator/health; then
+                printf '\nApplication and database are healthy.\n'
+                exit 0
+              fi
+              sleep 3
+            done
+            docker inspect simulado-arqobj --format '{{.State.Status}} (exit={{.State.ExitCode}})'
+            echo 'Application health check failed.' >&2
+            exit 1
