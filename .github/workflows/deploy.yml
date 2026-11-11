@@ -72,12 +72,15 @@ jobs:
         env:
           IMAGE: ${{ secrets.DOCKERHUB_USERNAME }}/simulado-arqobj:${{ github.sha }}
           DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+          AUTH0_ISSUER_URI: ${{ vars.AUTH0_ISSUER_URI }}
+          AUTH0_AUDIENCE: ${{ vars.AUTH0_AUDIENCE }}
+          APP_ALLOWED_ORIGINS: ${{ vars.APP_ALLOWED_ORIGINS }}
         with:
           host: ${{ secrets.HOST_TEST }}
           username: ubuntu
           key: ${{ secrets.KEY_TEST }}
           fingerprint: ${{ secrets.HOST_FINGERPRINT }}
-          envs: IMAGE,DB_PASSWORD
+          envs: IMAGE,DB_PASSWORD,AUTH0_ISSUER_URI,AUTH0_AUDIENCE,APP_ALLOWED_ORIGINS
           command_timeout: 10m
           script: |
             set -eu
@@ -101,6 +104,9 @@ jobs:
               -e DB_NAME=avaliacoesdb \
               -e DB_USER=usuario \
               -e DB_PASSWORD \
+              -e AUTH0_ISSUER_URI \
+              -e AUTH0_AUDIENCE \
+              -e APP_ALLOWED_ORIGINS \
               "$IMAGE"
 
             for attempt in $(seq 1 40); do

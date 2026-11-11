@@ -1,6 +1,6 @@
 # simulado-arqobj
 
-Java 25, Spring Boot 4.1.2 e PostgreSQL. A configuração do Auth0 fica para a próxima etapa.
+Java 25, Spring Boot 4.1.2 e PostgreSQL. Autenticação Auth0 com JWT e permissões por role.
 
 ## Executar localmente
 
@@ -28,3 +28,42 @@ Secrets do repositório: `DOCKERHUB_USERNAME`, `DOCKERHUB_TOKEN`, `HOST_TEST`, `
 A AWS precisa ter Docker, curl, a rede `simulado-rede` e o PostgreSQL próprio já ativos. O workflow não altera o banco nem containers de outros projetos e não executa limpeza global do Docker.
 
 Validação na instância: `curl --fail http://127.0.0.1:8080/actuator/health` deve retornar `{"status":"UP"}`. O acesso externo também depende da regra de entrada da porta 8080 na AWS.
+
+## Auth0 e avaliações
+
+O backend valida a assinatura RS256, o emissor, o destinatário (`audience`) e a validade do token. Não utiliza Client Secret: as chaves públicas vêm do Auth0.
+
+Configuração por variáveis de ambiente (também cadastradas como **Variables** no GitHub Actions):
+
+- `AUTH0_ISSUER_URI`: `https://dev-igd77oddewxpkhl0.us.auth0.com/`
+- `AUTH0_AUDIENCE`: `https://simulado-arqobj-api`
+- `APP_ALLOWED_ORIGINS`: `http://localhost:5173`; para mais origens, separar por vírgulas.
+
+O Spring Boot usa a propriedade `spring.security.oauth2.resourceserver.jwt.audiences` (plural) para validar o destinatário. O Client ID `DT5QIElpIs9Au5OeogD0sq9GvxgkBVEq` pertence ao frontend SPA e não é o audience da API.
+
+A Action de pós-login já ativa no Auth0, `ProjSoft-Aula`, inclui no access token:
+
+- `https://social-insper.com/email`: e-mail do usuário autenticado.
+- `https://social-insper.com/roles`: lista de roles, por exemplo `["ADMIN"]`.
+
+| Rota | Acesso | Resposta de sucesso |
+| --- | --- | --- |
+| `GET /avaliacoes` | Qualquer usuário com access token válido | 200, lista de avaliações |
+| `POST /avaliacoes` | Access token válido com role `ADMIN` | 201, avaliação criada |
+| `GET /actuator/health` | Público, usado para verificar deploy | 200, status UP |
+
+Sem token ou com token inválido: **401**. Usuário autenticado sem ADMIN tentando cadastrar: **403**. Dados inválidos: **400**.
+
+Exemplo de corpo para cadastrar, com header `Authorization: Bearer ACCESS_TOKEN` e `Content-Type: application/json`:
+
+```json
+{
+  "emailAvaliado": "colega@example.com",
+  "comentarios": "Boa comunicação com a equipe",
+  "nota": 9
+}
+```
+
+`id`, `emailAvaliador` e `dataAvaliacao` são definidos pelo backend. O e-mail do avaliador vem exclusivamente do token. Nota deve ser um inteiro entre 0 e 10.
+
+Os testes de integração usam tokens RS256 assinados por uma chave temporária exclusiva de teste, um servidor JWKS local e PostgreSQL. Verificam 401/403/201, assinatura, emissor, audience, expiração, persistência, validação dos campos e CORS. Não pedem senhas de usuários Auth0.
