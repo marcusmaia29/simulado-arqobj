@@ -87,3 +87,11 @@ Na Vercel, importe este repositório e selecione **Root Directory: frontend**, f
 No Auth0, a aplicação SPA precisa permitir `http://localhost:5173` e a URL de produção da Vercel em **Allowed Callback URLs**, **Allowed Logout URLs** e **Allowed Web Origins**. A variável `APP_ALLOWED_ORIGINS` do backend deve permitir as mesmas origens, separadas por vírgulas.
 
 Testes manuais: entrar como `user@social.com` e verificar a listagem sem formulário de cadastro; sair, entrar como `admin@social.com`, registrar uma avaliação e confirmar que ela continua na lista após atualizar a página. As senhas são digitadas somente na tela de login do Auth0.
+
+Frontend publicado: https://simulado-arqobj-front.vercel.app
+
+No Auth0, além dos endereços permitidos, a SPA `simulado-arqobj-front` precisa estar autorizada na API `simulado-arqobj-api`, em **Application Access → User-Delegated Access → Grant Access**. Não habilitar acesso máquina a máquina para essa SPA. O RBAC da API deve estar habilitado.
+
+### Reaproveitamento para a prova
+
+Este repositório é o simulado completo e a referência funcional. Uma futura base limpa pode reaproveitar o workflow, Dockerfile, variáveis, autenticação e frontend; basta remover/adaptar as entidades e telas específicas de avaliações. Não é necessário repetir a instalação de Docker nem o diagnóstico de deploy. Se o enunciado exigir outro repositório, seus secrets e variáveis precisam ser cadastrados nele; se exigir infraestrutura isolada, usar nomes próprios de rede, banco, imagem e containers. Essa base separada ainda não foi criada.
