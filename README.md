@@ -67,3 +67,23 @@ Exemplo de corpo para cadastrar, com header `Authorization: Bearer ACCESS_TOKEN`
 `id`, `emailAvaliador` e `dataAvaliacao` são definidos pelo backend. O e-mail do avaliador vem exclusivamente do token. Nota deve ser um inteiro entre 0 e 10.
 
 Os testes de integração usam tokens RS256 assinados por uma chave temporária exclusiva de teste, um servidor JWKS local e PostgreSQL. Verificam 401/403/201, assinatura, emissor, audience, expiração, persistência, validação dos campos e CORS. Não pedem senhas de usuários Auth0.
+
+## Frontend React
+
+O frontend está em `frontend/`, no mesmo repositório. Usa React, Vite e o SDK oficial `@auth0/auth0-react`.
+
+```sh
+cd frontend
+npm ci
+npm run dev
+```
+
+Acesse `http://localhost:5173`. `npm run build` gera `frontend/dist`. O GitHub Actions verifica o build do frontend antes do deploy do backend.
+
+Os identificadores públicos do simulado já têm valores padrão. Para adaptar a outro projeto, copie `.env.example` para `.env.local` e ajuste `VITE_AUTH0_DOMAIN`, `VITE_AUTH0_CLIENT_ID`, `VITE_AUTH0_AUDIENCE` e `VITE_API_URL`. Nunca coloque Client Secret no frontend.
+
+Na Vercel, importe este repositório e selecione **Root Directory: frontend**, framework **Vite**, build `npm run build` e output `dist`. `frontend/vercel.json` encaminha `/api/*` à API da AWS; o navegador usa HTTPS com a Vercel e não acessa diretamente o endereço HTTP da AWS. Para um ambiente de produção real, a conexão da hospedagem ao backend também deve usar HTTPS.
+
+No Auth0, a aplicação SPA precisa permitir `http://localhost:5173` e a URL de produção da Vercel em **Allowed Callback URLs**, **Allowed Logout URLs** e **Allowed Web Origins**. A variável `APP_ALLOWED_ORIGINS` do backend deve permitir as mesmas origens, separadas por vírgulas.
+
+Testes manuais: entrar como `user@social.com` e verificar a listagem sem formulário de cadastro; sair, entrar como `admin@social.com`, registrar uma avaliação e confirmar que ela continua na lista após atualizar a página. As senhas são digitadas somente na tela de login do Auth0.
